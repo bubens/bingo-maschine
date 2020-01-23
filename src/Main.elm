@@ -7,12 +7,18 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Html exposing (Html)
+import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline as Decode
 import List.Extra as List
 import Random
 import Random.Extra
 import Random.List
 import Random.Set
 import Set exposing (Set)
+
+
+type Hole
+    = Hole
 
 
 
@@ -44,7 +50,7 @@ type Msg
     = Noop
     | Selected Selection
     | StringsEntered String
-    | SheetGenerated Sheet
+    | CardGenerated Card
 
 
 type TypeOfBingo
@@ -69,7 +75,7 @@ type alias Directions =
     }
 
 
-type alias Sheet =
+type alias Card =
     List (List String)
 
 
@@ -89,7 +95,7 @@ type alias Model =
     , rawMaximumInput : Input
     , ordered : Bool
     , joker : Bool
-    , sampleSheet : Maybe Sheet
+    , sampleCard : Maybe Card
     }
 
 
@@ -97,28 +103,72 @@ type alias Model =
 -- INIT
 
 
-init : flags -> ( Model, Cmd Msg )
+fallbackModel : Model
+fallbackModel =
+    { typeOfBingo = Numbers
+    , size = 5
+    , rangeMinimum = 0
+    , rangeMaximum = 100
+    , strings = Set.empty
+    , title = "BingoMaschine 4.0 - Fallback"
+    , rawStringInput = ""
+    , rawMinimumInput = Valid "0"
+    , rawMaximumInput = Valid "100"
+    , ordered = True
+    , joker = False
+    , sampleCard = Nothing
+    }
+
+
+modelDecoder : Decoder Model
+modelDecoder =
+    let
+        toTypeOfBingo string =
+            if string == "Numbers" then
+                Numbers
+
+            else
+                Strings
+    in
+    Decode.succeed Model
+        |> Decode.required "title" Decode.string
+        |> Decode.required "size" Decode.int
+        |> Decode.required "rangeMinimum" Decode.int
+        |> Decode.required "rangeMaximum" Decode.int
+        |> Decode.custom
+            (Decode.field "strings" (Decode.list Decode.string)
+                |> Decode.map Set.fromList
+            )
+        |> Decode.custom
+            (Decode.field "typeOfBingo" Decode.string
+                |> Decode.map toTypeOfBingo
+            )
+        |> Decode.required "rawStringInput" Decode.string
+        |> Decode.custom
+            (Decode.field "rawMinimumInput" Decode.string
+                |> Decode.map stringToInput
+            )
+        |> Decode.custom
+            (Decode.field "rawMaximumInput" Decode.string
+                |> Decode.map stringToInput
+            )
+        |> Decode.required "ordered" Decode.bool
+        |> Decode.required "joker" Decode.bool
+        |> Decode.hardcoded Nothing
+
+
+init : Decode.Value -> ( Model, Cmd Msg )
 init flags =
     let
         initModel =
-            { typeOfBingo = Numbers
-            , size = 5
-            , rangeMinimum = 0
-            , rangeMaximum = 100
-            , strings = Set.empty
-            , title = "BingoMaschine 4.0"
-            , rawStringInput = ""
-            , rawMinimumInput = Valid "0"
-            , rawMaximumInput = Valid "100"
-            , ordered = True
-            , joker = False
-            , sampleSheet = Nothing
-            }
+            flags
+                |> Decode.decodeValue modelDecoder
+                |> Result.withDefault fallbackModel
 
         generator =
-            sheetGenerator initModel
+            cardGenerator initModel
     in
-    ( initModel, Random.generate SheetGenerated generator )
+    ( initModel, Random.generate CardGenerated generator )
 
 
 
@@ -133,6 +183,24 @@ colors =
     , brightBackground = rgb255 9 122 108
     , darkBackground = rgb255 0 66 86
     }
+
+
+stringToInput : String -> Input
+stringToInput string =
+    if string == "" then
+        Empty
+
+    else
+        let
+            maybeInt =
+                String.toInt string
+        in
+        case maybeInt of
+            Just x ->
+                Valid string
+
+            Nothing ->
+                Invalid string
 
 
 directions : Directions
@@ -162,8 +230,8 @@ update msg model =
 
         Selected selection ->
             let
-                generateSampleSheet =
-                    Random.generate SheetGenerated << sheetGenerator
+                generateSampleCard =
+                    Random.generate CardGenerated << cardGenerator
 
                 newModel =
                     case selection of
@@ -174,54 +242,56 @@ update msg model =
                             { model | typeOfBingo = selectedType }
 
                         Minimum stringMinimum ->
-                            if String.isEmpty stringMinimum then
-                                { model
-                                    | rawMinimumInput = Empty
-                                    , rangeMinimum = 0
-                                }
+                            let
+                                input =
+                                    stringToInput stringMinimum
+                            in
+                            case input of
+                                Empty ->
+                                    { model
+                                        | rawMinimumInput = Empty
+                                        , rangeMinimum = 0
+                                    }
 
-                            else
-                                let
-                                    input =
-                                        String.toInt stringMinimum
-                                in
-                                case input of
-                                    Just x ->
-                                        { model
-                                            | rawMinimumInput = Valid (String.fromInt x)
-                                            , rangeMinimum = x
-                                        }
+                                Valid x ->
+                                    { model
+                                        | rawMinimumInput = input
+                                        , rangeMinimum =
+                                            String.toInt x
+                                                |> Maybe.withDefault 0
+                                    }
 
-                                    Nothing ->
-                                        { model
-                                            | rawMinimumInput = Invalid stringMinimum
-                                            , rangeMinimum = 0
-                                        }
+                                Invalid _ ->
+                                    { model
+                                        | rawMinimumInput = input
+                                        , rangeMinimum = 0
+                                    }
 
                         Maximum stringMaximum ->
-                            if String.isEmpty stringMaximum then
-                                { model
-                                    | rawMaximumInput = Empty
-                                    , rangeMaximum = 100
-                                }
+                            let
+                                input =
+                                    stringToInput stringMaximum
+                            in
+                            case input of
+                                Empty ->
+                                    { model
+                                        | rawMaximumInput = Empty
+                                        , rangeMaximum = 100
+                                    }
 
-                            else
-                                let
-                                    input =
-                                        String.toInt stringMaximum
-                                in
-                                case input of
-                                    Just x ->
-                                        { model
-                                            | rawMaximumInput = Valid (String.fromInt x)
-                                            , rangeMaximum = x
-                                        }
+                                Valid x ->
+                                    { model
+                                        | rawMaximumInput = input
+                                        , rangeMaximum =
+                                            String.toInt x
+                                                |> Maybe.withDefault 100
+                                    }
 
-                                    Nothing ->
-                                        { model
-                                            | rawMaximumInput = Invalid stringMaximum
-                                            , rangeMaximum = 100
-                                        }
+                                Invalid _ ->
+                                    { model
+                                        | rawMaximumInput = input
+                                        , rangeMaximum = 100
+                                    }
 
                         Ordered isOrdered ->
                             { model | ordered = isOrdered }
@@ -229,10 +299,10 @@ update msg model =
                         Joker isWithJoker ->
                             { model | joker = isWithJoker }
             in
-            ( newModel, generateSampleSheet newModel )
+            ( newModel, generateSampleCard newModel )
 
-        SheetGenerated sheet ->
-            { model | sampleSheet = Just sheet }
+        CardGenerated card ->
+            { model | sampleCard = Just card }
                 |> withCommand Cmd.none
 
         StringsEntered input ->
@@ -248,14 +318,14 @@ update msg model =
                         , rawStringInput = input
                     }
             in
-            ( newModel, Random.generate SheetGenerated (sheetGenerator newModel) )
+            ( newModel, Random.generate CardGenerated (cardGenerator newModel) )
 
 
 
 -- GENERATORS
 
 
-generateOrdered : Model -> Random.Generator Sheet
+generateOrdered : Model -> Random.Generator Card
 generateOrdered { size, rangeMinimum, rangeMaximum } =
     let
         split =
@@ -273,7 +343,7 @@ generateOrdered { size, rangeMinimum, rangeMaximum } =
             (List.map (List.map String.fromInt << Set.toList))
 
 
-generateFrom : Int -> List String -> Random.Generator Sheet
+generateFrom : Int -> List String -> Random.Generator Card
 generateFrom size strings =
     case strings of
         [] ->
@@ -301,8 +371,8 @@ generateFrom size strings =
 --|> Random.andMap Random.shuffle
 
 
-sheetGenerator : Model -> Random.Generator Sheet
-sheetGenerator model =
+cardGenerator : Model -> Random.Generator Card
+cardGenerator model =
     case model.typeOfBingo of
         Strings ->
             generateFrom
@@ -661,10 +731,10 @@ viewSettings model =
         ]
 
 
-viewSampleSheet : Model -> Element msg
-viewSampleSheet model =
-    case model.sampleSheet of
-        Just sheet ->
+viewSampleCard : Model -> Element msg
+viewSampleCard model =
+    case model.sampleCard of
+        Just card ->
             column
                 [ width fill ]
                 [ el
@@ -709,12 +779,12 @@ viewSampleSheet model =
                                 |> column
                                     [ width <| fillPortion 1 ]
                         )
-                        sheet
+                        card
                     )
                 ]
 
         Nothing ->
-            el [] (text "Here won't be Sheet")
+            el [] (text "Here won't be Card")
 
 
 view : Model -> Document Msg
@@ -740,7 +810,7 @@ view model =
                 [ width <| px 600
                 , height fill
                 ]
-                [ viewSampleSheet model ]
+                [ viewSampleCard model ]
             ]
         ]
         |> asDocument model.title
@@ -759,7 +829,7 @@ subscriptions model =
 -- MAIN
 
 
-main : Program () Model Msg
+main : Program Decode.Value Model Msg
 main =
     Browser.document
         { init = init
