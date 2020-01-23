@@ -4,7 +4,7 @@ SOURCE_ELM="./src/Main.elm";
 SOURCE_TS="./ts/main.ts";
 SOURCE_HTML="./html/index.html";
 
-TMP_FOLDER="./tmp_$(date +%s)";
+TMP_FOLDER="./tmp";
 
 RELEASE_FOLDER="./rel";
 
@@ -29,7 +29,7 @@ cp -v $SOURCE_HTML $RELEASE_FOLDER &&
 echo "Step 2: Compiling elm..." &&
 elm make --output=$TMP_FOLDER/elm.js $SOURCE_ELM &&
 echo "Step 3: Compiling typescript..." &&
-tsc --outDir $TMP_FOLDER $SOURCE_TS &&
+tsc --project tsconfig.json &&
 echo "Step 4: Bundling up all the js-parts..." &&
 browserify -o "$RELEASE_FOLDER/app.js" "$TMP_FOLDER/main.js" &&
 echo "Done building app"
