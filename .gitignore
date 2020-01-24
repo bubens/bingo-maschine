@@ -3,3 +3,4 @@ elm-stuff/
 rel/
 tmp*/
 index.html
+!html/index.html
