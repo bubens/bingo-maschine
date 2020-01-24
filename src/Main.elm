@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Browser exposing (Document)
 import Element exposing (..)
@@ -9,6 +9,7 @@ import Element.Input as Input
 import Html exposing (Html)
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline as Decode
+import Json.Encode as Encode
 import List.Extra as List
 import Random
 import Random.Extra
@@ -97,6 +98,10 @@ type alias Model =
     , joker : Bool
     , sampleCard : Maybe Card
     }
+
+
+type OutboxMessageType
+    = SaveState Model
 
 
 
@@ -230,9 +235,6 @@ update msg model =
 
         Selected selection ->
             let
-                generateSampleCard =
-                    Random.generate CardGenerated << cardGenerator
-
                 newModel =
                     case selection of
                         Size selectedSize ->
@@ -302,8 +304,11 @@ update msg model =
             ( newModel, generateSampleCard newModel )
 
         CardGenerated card ->
-            { model | sampleCard = Just card }
-                |> withCommand Cmd.none
+            let
+                newModel =
+                    { model | sampleCard = Just card }
+            in
+            ( newModel, sendToOutbox (SaveState newModel) )
 
         StringsEntered input ->
             let
@@ -318,7 +323,7 @@ update msg model =
                         , rawStringInput = input
                     }
             in
-            ( newModel, Random.generate CardGenerated (cardGenerator newModel) )
+            ( newModel, generateSampleCard newModel )
 
 
 
@@ -389,6 +394,11 @@ cardGenerator model =
                     (List.range model.rangeMinimum model.rangeMaximum
                         |> List.map String.fromInt
                     )
+
+
+generateSampleCard : Model -> Cmd Msg
+generateSampleCard =
+    Random.generate CardGenerated << cardGenerator
 
 
 
@@ -821,8 +831,63 @@ view model =
 
 
 subscriptions : Model -> Sub msg
-subscriptions model =
+subscriptions _ =
     Sub.none
+
+
+
+-- PORTS
+
+
+modelEncoder : Model -> Encode.Value
+modelEncoder model =
+    let
+        typeToString bingoType =
+            case bingoType of
+                Numbers ->
+                    "Numbers"
+
+                Strings ->
+                    "Strings"
+
+        inputToString input =
+            case input of
+                Valid str ->
+                    str
+
+                Invalid str ->
+                    str
+
+                Empty ->
+                    ""
+    in
+    Encode.object
+        [ ( "title", Encode.string model.title )
+        , ( "size", Encode.int model.size )
+        , ( "rangeMinimum", Encode.int model.rangeMinimum )
+        , ( "rangeMaximum", Encode.int model.rangeMaximum )
+        , ( "strings", Encode.list Encode.string <| Set.toList model.strings )
+        , ( "typeOfBingo", Encode.string <| typeToString model.typeOfBingo )
+        , ( "rawStringInput", Encode.string model.rawStringInput )
+        , ( "rawMinimumInput", Encode.string <| inputToString model.rawMinimumInput )
+        , ( "rawMaximumInput", Encode.string <| inputToString model.rawMaximumInput )
+        , ( "ordered", Encode.bool model.ordered )
+        , ( "joker", Encode.bool model.joker )
+        , ( "sampleCard", Encode.list (Encode.list Encode.string) [ [] ] )
+        ]
+
+
+sendToOutbox : OutboxMessageType -> Cmd msg
+sendToOutbox outMsgType =
+    case outMsgType of
+        SaveState model ->
+            Encode.object
+                [ ( "SaveState", modelEncoder model )
+                ]
+                |> outbox
+
+
+port outbox : Encode.Value -> Cmd msg
 
 
 

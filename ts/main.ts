@@ -18,6 +18,20 @@ const getStoredModel = (key: string, fallback: Config.Model): Config.Model => {
 };
 
 
+type SaveStateMessage =
+    { SaveState: Config.Model }
+
+type IncomingMessage =
+    SaveStateMessage
+
+const portRouter = (data: IncomingMessage): void => {
+    if (data.SaveState !== undefined) {
+        const dataString = JSON.stringify(data.SaveState);
+        localStorage.setItem(Config.storageKey, dataString);
+    }
+};
+
+
 function main(elm: Elm, initModel: Config.Model): void {
     const model = getStoredModel(Config.storageKey, initModel);
 
@@ -25,6 +39,8 @@ function main(elm: Elm, initModel: Config.Model): void {
         node: document.querySelector(Config.elmElementId),
         flags: model
     });
+
+    app.ports.outbox.subscribe(portRouter);
 }
 
 main(Elm.Main, Config.initModel);

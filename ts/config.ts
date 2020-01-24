@@ -25,7 +25,7 @@ export const storageKey = "$model";
 export const elmElementId = "#app_goes_here";
 
 export const initModel: Model = {
-    title: "Bingo-Maschine 4.0 - from flags",
+    title: "Bingo-Maschine 4.0",
     typeOfBingo: "Numbers",
     size: 5,
     rangeMinimum: 0,
