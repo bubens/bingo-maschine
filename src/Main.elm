@@ -201,7 +201,7 @@ stringToInput string =
                 String.toInt string
         in
         case maybeInt of
-            Just x ->
+            Just _ ->
                 Valid string
 
             Nothing ->
@@ -227,6 +227,74 @@ withCommand =
 -- UPDATE
 
 
+updateSettings : Selection -> Model -> Model
+updateSettings selection model =
+    case selection of
+        Size selectedSize ->
+            { model | size = selectedSize }
+
+        BingoType selectedType ->
+            { model | typeOfBingo = selectedType }
+
+        Minimum stringMinimum ->
+            let
+                input =
+                    stringToInput stringMinimum
+            in
+            case input of
+                Empty ->
+                    { model
+                        | rawMinimumInput = Empty
+                        , rangeMinimum = 0
+                    }
+
+                Valid x ->
+                    { model
+                        | rawMinimumInput = input
+                        , rangeMinimum =
+                            String.toInt x
+                                |> Maybe.withDefault 0
+                    }
+
+                Invalid _ ->
+                    { model
+                        | rawMinimumInput = input
+                        , rangeMinimum = 0
+                    }
+
+        Maximum stringMaximum ->
+            let
+                input =
+                    stringToInput stringMaximum
+            in
+            case input of
+                Empty ->
+                    { model
+                        | rawMaximumInput = Empty
+                        , rangeMaximum = 100
+                    }
+
+                Valid x ->
+                    { model
+                        | rawMaximumInput = input
+                        , rangeMaximum =
+                            String.toInt x
+                                |> Maybe.withDefault 100
+                    }
+
+                Invalid _ ->
+                    { model
+                        | rawMaximumInput = input
+                        , rangeMaximum = 100
+                    }
+
+        Ordered isOrdered ->
+            { model | ordered = isOrdered }
+
+        Joker isWithJoker ->
+            { model | joker = isWithJoker }
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
@@ -235,80 +303,19 @@ update msg model =
 
         Selected selection ->
             let
-                newModel =
-                    case selection of
-                        Size selectedSize ->
-                            { model | size = selectedSize }
-
-                        BingoType selectedType ->
-                            { model | typeOfBingo = selectedType }
-
-                        Minimum stringMinimum ->
-                            let
-                                input =
-                                    stringToInput stringMinimum
-                            in
-                            case input of
-                                Empty ->
-                                    { model
-                                        | rawMinimumInput = Empty
-                                        , rangeMinimum = 0
-                                    }
-
-                                Valid x ->
-                                    { model
-                                        | rawMinimumInput = input
-                                        , rangeMinimum =
-                                            String.toInt x
-                                                |> Maybe.withDefault 0
-                                    }
-
-                                Invalid _ ->
-                                    { model
-                                        | rawMinimumInput = input
-                                        , rangeMinimum = 0
-                                    }
-
-                        Maximum stringMaximum ->
-                            let
-                                input =
-                                    stringToInput stringMaximum
-                            in
-                            case input of
-                                Empty ->
-                                    { model
-                                        | rawMaximumInput = Empty
-                                        , rangeMaximum = 100
-                                    }
-
-                                Valid x ->
-                                    { model
-                                        | rawMaximumInput = input
-                                        , rangeMaximum =
-                                            String.toInt x
-                                                |> Maybe.withDefault 100
-                                    }
-
-                                Invalid _ ->
-                                    { model
-                                        | rawMaximumInput = input
-                                        , rangeMaximum = 100
-                                    }
-
-                        Ordered isOrdered ->
-                            { model | ordered = isOrdered }
-
-                        Joker isWithJoker ->
-                            { model | joker = isWithJoker }
+                nextModel =
+                    updateSettings selection model
             in
-            ( newModel, generateSampleCard newModel )
+            ( nextModel
+            , Cmd.batch
+                [ generateSampleCard nextModel
+                , sendToOutbox (SaveState nextModel)
+                ]
+            )
 
         CardGenerated card ->
-            let
-                newModel =
-                    { model | sampleCard = Just card }
-            in
-            ( newModel, sendToOutbox (SaveState newModel) )
+            { model | sampleCard = Just card }
+                |> withCommand Cmd.none
 
         StringsEntered input ->
             let
@@ -873,7 +880,7 @@ modelEncoder model =
         , ( "rawMaximumInput", Encode.string <| inputToString model.rawMaximumInput )
         , ( "ordered", Encode.bool model.ordered )
         , ( "joker", Encode.bool model.joker )
-        , ( "sampleCard", Encode.list (Encode.list Encode.string) [ [] ] )
+        , ( "sampleCard", Encode.null )
         ]
 
 

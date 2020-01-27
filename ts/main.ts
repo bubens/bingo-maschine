@@ -5,7 +5,6 @@ import * as Config from "./config";
 const getStoredModel = (key: string, fallback: Config.Model): Config.Model => {
     const rawString = window.localStorage.getItem(key);
 
-
     if (rawString === null) {
         return fallback;
     }
@@ -25,9 +24,10 @@ type IncomingMessage =
     SaveStateMessage
 
 const portRouter = (data: IncomingMessage): void => {
-    if (data.SaveState !== undefined) {
+    if (data.hasOwnProperty("SaveState")) {
         const dataString = JSON.stringify(data.SaveState);
         localStorage.setItem(Config.storageKey, dataString);
+        localStorage.getItem(Config.storageKey);
     }
 };
 
