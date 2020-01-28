@@ -10,4 +10,5 @@
 * ~~first working version of frontend~~
 * ~~`make.sh` script~~
 * ~~get saved state through flags~~
-* ~~~ports to send state to `localStorage`~~~
+* ~~ports to send state to `localStorage`~~
+* ~~don't forget about the joker field~~

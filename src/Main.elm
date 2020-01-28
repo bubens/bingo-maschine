@@ -7,6 +7,7 @@ import Element.Border as Border
 import Element.Font as Font
 import Element.Input as Input
 import Html exposing (Html)
+import Joker
 import Json.Decode as Decode exposing (Decoder)
 import Json.Decode.Pipeline as Decode
 import Json.Encode as Encode
@@ -765,25 +766,42 @@ viewSampleCard model =
                     , Border.width 3
                     , Border.color colors.brightBackground
                     ]
-                    (List.map
-                        (\col ->
-                            List.map
-                                (\x ->
+                    (List.indexedMap
+                        (\outerIndex col ->
+                            List.indexedMap
+                                (\innerIndex x ->
+                                    let
+                                        halfSize =
+                                            toFloat (model.size - 1)
+                                                / 2
+                                                |> round
+
+                                        value =
+                                            if
+                                                not model.joker
+                                                    || (modBy 2 model.size == 0)
+                                                    || not (outerIndex == halfSize)
+                                                    || not (innerIndex == halfSize)
+                                            then
+                                                el
+                                                    [ width shrink
+                                                    , height shrink
+                                                    , centerX
+                                                    , centerY
+                                                    , Font.family [ Font.monospace ]
+                                                    ]
+                                                    (text x)
+
+                                            else
+                                                html <| Joker.render 100 100
+                                    in
                                     el
                                         [ height <| px 40
                                         , width fill
                                         , Border.width 1
                                         , Border.color colors.brightBackground
                                         ]
-                                        (el
-                                            [ width shrink
-                                            , height shrink
-                                            , centerX
-                                            , centerY
-                                            , Font.family [ Font.monospace ]
-                                            ]
-                                            (text x)
-                                        )
+                                        value
                                 )
                                 col
                                 |> (::)
