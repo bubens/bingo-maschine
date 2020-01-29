@@ -793,10 +793,17 @@ viewSampleCard model =
                                                     (text x)
 
                                             else
-                                                html <| Joker.render 100 100
+                                                el
+                                                    [ width shrink
+                                                    , height shrink
+                                                    , centerX
+                                                    , centerY
+                                                    , Font.family [ Font.monospace ]
+                                                    ]
+                                                    (html <| Joker.render 50 50)
                                     in
                                     el
-                                        [ height <| px 40
+                                        [ height <| px 60
                                         , width fill
                                         , Border.width 1
                                         , Border.color colors.brightBackground
