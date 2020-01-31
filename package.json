@@ -10,7 +10,9 @@
   "author": "Henning P. Beyer <bubens@unpunk.de>",
   "license": "GPL-3.0-or-later",
   "dependencies": {
-    "pdfjs": "^2.3.3"
+    "@types/elm": "^0.12.29",
+    "@types/jspdf": "^1.3.3",
+    "jspdf": "^1.5.3"
   },
   "devDependencies": {
     "browserify": "^16.5.0",

@@ -46,6 +46,7 @@ type Selection
     | Maximum String
     | Ordered Bool
     | Joker Bool
+    | NumberOfCards String
 
 
 type Msg
@@ -53,6 +54,7 @@ type Msg
     | Selected Selection
     | StringsEntered String
     | CardGenerated Card
+    | SubmitSettings
 
 
 type TypeOfBingo
@@ -98,11 +100,15 @@ type alias Model =
     , ordered : Bool
     , joker : Bool
     , sampleCard : Maybe Card
+    , numberOfCards : Int
+    , rawNumberOfCardsInput : Input
+    , createdCards : Maybe (List Card)
     }
 
 
-type OutboxMessageType
+type OutgoingMessageType
     = SaveState Model
+    | CreateCards Model
 
 
 
@@ -123,6 +129,9 @@ fallbackModel =
     , ordered = True
     , joker = False
     , sampleCard = Nothing
+    , numberOfCards = 1
+    , rawNumberOfCardsInput = Valid "1"
+    , createdCards = Nothing
     }
 
 
@@ -161,14 +170,21 @@ modelDecoder =
         |> Decode.required "ordered" Decode.bool
         |> Decode.required "joker" Decode.bool
         |> Decode.hardcoded Nothing
+        |> Decode.required "numberOfCards" Decode.int
+        |> Decode.custom
+            (Decode.field "rawNumberOfCardsInput" Decode.string
+                |> Decode.map stringToInput
+            )
+        |> Decode.hardcoded Nothing
 
 
 init : Decode.Value -> ( Model, Cmd Msg )
-init flags =
+init modelFromStorage =
     let
         initModel =
-            flags
+            modelFromStorage
                 |> Decode.decodeValue modelDecoder
+                |> Debug.log "modelFromStorage"
                 |> Result.withDefault fallbackModel
 
         generator =
@@ -295,6 +311,32 @@ updateSettings selection model =
         Joker isWithJoker ->
             { model | joker = isWithJoker }
 
+        NumberOfCards n ->
+            let
+                input =
+                    stringToInput n
+            in
+            case input of
+                Empty ->
+                    { model
+                        | rawNumberOfCardsInput = Empty
+                        , numberOfCards = 0
+                    }
+
+                Valid x ->
+                    { model
+                        | rawNumberOfCardsInput = input
+                        , numberOfCards =
+                            String.toInt x
+                                |> Maybe.withDefault 1
+                    }
+
+                Invalid _ ->
+                    { model
+                        | rawNumberOfCardsInput = input
+                        , numberOfCards = 1
+                    }
+
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
@@ -332,6 +374,9 @@ update msg model =
                     }
             in
             ( newModel, generateSampleCard newModel )
+
+        SubmitSettings ->
+            ( model, sendToOutbox (CreateCards model) )
 
 
 
@@ -378,10 +423,6 @@ generateFrom size strings =
                 |> Random.map Set.toList
                 |> Random.andThen Random.List.shuffle
                 |> Random.map (List.groupsOf size)
-
-
-
---|> Random.andMap Random.shuffle
 
 
 cardGenerator : Model -> Random.Generator Card
@@ -506,7 +547,8 @@ viewSelectSize model =
                 [ width fill
                 , height (px 2)
                 , centerY
-                , Background.color colors.brightBackground
+                , Background.color
+                    colors.brightBackground
                 , Border.rounded 2
                 ]
                 none
@@ -564,6 +606,42 @@ viewStringSettings rawInput =
         }
 
 
+viewInput : String -> (String -> Selection) -> Input -> Element Msg
+viewInput labelText selection input =
+    let
+        ( valueText, glow ) =
+            case input of
+                Empty ->
+                    ( "", 0 )
+
+                Valid string ->
+                    ( string, 0 )
+
+                Invalid string ->
+                    ( string, 5 )
+    in
+    Input.text
+        [ Border.glow (rgb255 255 0 0) glow
+        , Font.color colors.darkBackground
+        , Font.size 25
+        , height <| px 30
+        , padding 0
+        , spacing 0
+        , centerX
+        , Font.family [ Font.monospace ]
+        ]
+        { onChange = Selected << selection
+        , text = valueText
+        , placeholder = Nothing
+        , label =
+            Input.labelLeft
+                [ Font.size 14
+                , centerY
+                ]
+                (text (labelText ++ ":"))
+        }
+
+
 viewNumberSettings : Model -> Element Msg
 viewNumberSettings model =
     let
@@ -574,72 +652,6 @@ viewNumberSettings model =
                 , paddingXY 0 5
                 ]
                 (text "Einstellungen Zahlen:")
-
-        ( minimumText, minimumGlow ) =
-            case model.rawMinimumInput of
-                Empty ->
-                    ( "", 0 )
-
-                Valid string ->
-                    ( string, 0 )
-
-                Invalid string ->
-                    ( string, 5 )
-
-        selectMinimum =
-            Input.text
-                [ Border.glow (rgb255 255 0 0) minimumGlow
-                , Font.color colors.darkBackground
-                , Font.size 25
-                , height <| px 30
-                , padding 0
-                , spacing 0
-                , centerX
-                , Font.family [ Font.monospace ]
-                ]
-                { onChange = Selected << Minimum
-                , text = minimumText
-                , placeholder = Nothing
-                , label =
-                    Input.labelLeft
-                        [ Font.size 14
-                        , centerY
-                        ]
-                        (text "Minimum: ")
-                }
-
-        ( maximumText, maximumGlow ) =
-            case model.rawMaximumInput of
-                Empty ->
-                    ( "", 0 )
-
-                Valid string ->
-                    ( string, 0 )
-
-                Invalid string ->
-                    ( string, 5 )
-
-        selectMaximum =
-            Input.text
-                [ Border.glow (rgb255 255 0 0) maximumGlow
-                , Font.color colors.darkBackground
-                , Font.size 25
-                , height <| px 30
-                , padding 0
-                , spacing 0
-                , centerX
-                , Font.family [ Font.monospace ]
-                ]
-                { onChange = Selected << Maximum
-                , text = maximumText
-                , placeholder = Nothing
-                , label =
-                    Input.labelLeft
-                        [ Font.size 14
-                        , centerY
-                        ]
-                        (text "Maximum: ")
-                }
 
         selectOrdered =
             Input.radioRow
@@ -682,53 +694,68 @@ viewNumberSettings model =
         , height <| px 200
         ]
         [ header
-        , selectMinimum
-        , selectMaximum
+        , viewInput "Minimum" Minimum model.rawMinimumInput
+        , viewInput "Maximum" Maximum model.rawMaximumInput
         , selectOrdered
         ]
+
+
+viewSelectJoker : Model -> Element Msg
+viewSelectJoker model =
+    if modBy 2 model.size == 1 then
+        Input.radioRow
+            [ centerY
+            , width fill
+            , spacingXY 20 0
+            ]
+            { onChange = Selected << Joker
+            , selected = Just model.joker
+            , label =
+                Input.labelLeft
+                    [ Font.family [ Font.monospace ]
+                    , Font.size 14
+                    , centerY
+                    ]
+                    (text "Jokerfeld:")
+            , options =
+                [ Input.option
+                    True
+                    (el
+                        [ Font.size 18
+                        , Font.color colors.darkText
+                        ]
+                        (text "Ja")
+                    )
+                , Input.option
+                    False
+                    (el
+                        [ Font.size 18
+                        , Font.color colors.darkText
+                        ]
+                        (text "Nein")
+                    )
+                ]
+            }
+
+    else
+        none
+
+
+viewSelectNumberOfCards : Model -> Element Msg
+viewSelectNumberOfCards model =
+    viewInput "Number of Cards" NumberOfCards model.rawNumberOfCardsInput
 
 
 viewSettings : Model -> Element Msg
 viewSettings model =
     let
-        selectJoker =
-            if modBy 2 model.size == 1 then
-                Input.radioRow
-                    [ centerY
-                    , width fill
-                    , spacingXY 20 0
-                    ]
-                    { onChange = Selected << Joker
-                    , selected = Just model.joker
-                    , label =
-                        Input.labelLeft
-                            [ Font.family [ Font.monospace ]
-                            , Font.size 14
-                            , centerY
-                            ]
-                            (text "Jokerfeld:")
-                    , options =
-                        [ Input.option
-                            True
-                            (el
-                                [ Font.size 18
-                                , Font.color colors.darkText
-                                ]
-                                (text "Ja")
-                            )
-                        , Input.option
-                            False
-                            (el
-                                [ Font.size 18
-                                , Font.color colors.darkText
-                                ]
-                                (text "Nein")
-                            )
-                        ]
-                    }
+        settings =
+            case model.typeOfBingo of
+                Strings ->
+                    viewStringSettings model.rawStringInput
 
-            else
-                none
+                Numbers ->
+                    viewNumberSettings model
     in
     column
         [ Font.size 12
@@ -739,13 +766,9 @@ viewSettings model =
         ]
         [ viewSelectSize model
         , viewTypeSelection model.typeOfBingo
-        , case model.typeOfBingo of
-            Strings ->
-                viewStringSettings model.rawStringInput
-
-            Numbers ->
-                viewNumberSettings model
-        , selectJoker
+        , settings
+        , viewSelectJoker model
+        , viewSelectNumberOfCards model
         ]
 
 
@@ -798,7 +821,6 @@ viewSampleCard model =
                                                     , height shrink
                                                     , centerX
                                                     , centerY
-                                                    , Font.family [ Font.monospace ]
                                                     ]
                                                     (html <| Joker.render 50 50)
                                     in
@@ -829,6 +851,24 @@ viewSampleCard model =
             el [] (text "Here won't be Card")
 
 
+viewSubmit : Element Msg
+viewSubmit =
+    row
+        [ Font.size 12
+        , Font.color colors.color
+        , width fill
+        , height fill
+        , spacing 20
+        ]
+        [ Input.button
+            []
+            { onPress = Just SubmitSettings
+            , label =
+                text "Karten erzeugen"
+            }
+        ]
+
+
 view : Model -> Document Msg
 view model =
     let
@@ -847,6 +887,7 @@ view model =
                 ]
                 [ viewInfobox
                 , viewSettings model
+                , viewSubmit
                 ]
             , column
                 [ width <| px 600
@@ -906,15 +947,26 @@ modelEncoder model =
         , ( "ordered", Encode.bool model.ordered )
         , ( "joker", Encode.bool model.joker )
         , ( "sampleCard", Encode.null )
+        , ( "numberOfCards", Encode.int model.numberOfCards )
+        , ( "rawNumberOfCardsInput", Encode.string <| inputToString model.rawNumberOfCardsInput )
+        , ( "createdCards", Encode.null )
         ]
 
 
-sendToOutbox : OutboxMessageType -> Cmd msg
+sendToOutbox : OutgoingMessageType -> Cmd msg
 sendToOutbox outMsgType =
     case outMsgType of
         SaveState model ->
             Encode.object
-                [ ( "SaveState", modelEncoder model )
+                [ ( "model", modelEncoder model )
+                , ( "type", Encode.string "SaveState" )
+                ]
+                |> outbox
+
+        CreateCards model ->
+            Encode.object
+                [ ( "model", modelEncoder model )
+                , ( "type", Encode.string "CreateCards" )
                 ]
                 |> outbox
 

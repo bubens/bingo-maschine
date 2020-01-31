@@ -1,6 +1,7 @@
 //@ts-ignore
 import { Elm } from "./elm";
 import * as Config from "./config";
+import * as Pdf from "jspdf";
 
 const getStoredModel = (key: string, fallback: Config.Model): Config.Model => {
     const rawString = window.localStorage.getItem(key);
@@ -9,25 +10,38 @@ const getStoredModel = (key: string, fallback: Config.Model): Config.Model => {
         return fallback;
     }
     else {
-        const model =
-            JSON.parse(rawString);
+        try {
+            const model =
+                JSON.parse(rawString);
 
-        return { ...fallback, ...model };
+            return { ...fallback, ...model };
+        }
+        catch (_) {
+            return fallback;
+        }
+
+
     }
 };
 
+type MessageType =
+    "SaveState"
+    | "CreateCards"
 
-type SaveStateMessage =
-    { SaveState: Config.Model }
+type IncomingMessage = {
+    type: MessageType,
+    model: Config.Model
+}
 
-type IncomingMessage =
-    SaveStateMessage
 
-const portRouter = (data: IncomingMessage): void => {
-    if (data.hasOwnProperty("SaveState")) {
-        const dataString = JSON.stringify(data.SaveState);
+const portRouter = ({ type, model }: IncomingMessage): void => {
+    if (type === "SaveState") {
+        const dataString = JSON.stringify(model);
         localStorage.setItem(Config.storageKey, dataString);
         localStorage.getItem(Config.storageKey);
+    }
+    else if (type === "CreateCards") {
+        alert(model.numberOfCards + " Cards created");
     }
 };
 
