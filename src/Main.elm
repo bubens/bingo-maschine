@@ -15,7 +15,7 @@ import List.Extra as List
 import Random
 import Random.Extra
 import Random.List
-import Random.Set
+import Result.Extra
 import Set exposing (Set)
 
 
@@ -53,7 +53,8 @@ type Msg
     = Noop
     | Selected Selection
     | StringsEntered String
-    | CardGenerated Card
+    | SampleCardGenerated (Result String Card)
+    | CardsGenerated (Result String (List Card))
     | SubmitSettings
 
 
@@ -99,16 +100,16 @@ type alias Model =
     , rawMaximumInput : Input
     , ordered : Bool
     , joker : Bool
-    , sampleCard : Maybe Card
+    , sampleCard : Result String Card
     , numberOfCards : Int
     , rawNumberOfCardsInput : Input
-    , createdCards : Maybe (List Card)
+    , errorMessage : Maybe String
     }
 
 
 type OutgoingMessageType
     = SaveState Model
-    | CreateCards Model
+    | CreateCards (List Card)
 
 
 
@@ -128,10 +129,10 @@ fallbackModel =
     , rawMaximumInput = Valid "100"
     , ordered = True
     , joker = False
-    , sampleCard = Nothing
+    , sampleCard = Err "So sample card generated"
     , numberOfCards = 1
     , rawNumberOfCardsInput = Valid "1"
-    , createdCards = Nothing
+    , errorMessage = Nothing
     }
 
 
@@ -169,7 +170,7 @@ modelDecoder =
             )
         |> Decode.required "ordered" Decode.bool
         |> Decode.required "joker" Decode.bool
-        |> Decode.hardcoded Nothing
+        |> Decode.hardcoded (Err "No sample card generated")
         |> Decode.required "numberOfCards" Decode.int
         |> Decode.custom
             (Decode.field "rawNumberOfCardsInput" Decode.string
@@ -184,13 +185,12 @@ init modelFromStorage =
         initModel =
             modelFromStorage
                 |> Decode.decodeValue modelDecoder
-                |> Debug.log "modelFromStorage"
                 |> Result.withDefault fallbackModel
 
         generator =
             cardGenerator initModel
     in
-    ( initModel, Random.generate CardGenerated generator )
+    ( initModel, Random.generate SampleCardGenerated generator )
 
 
 
@@ -356,8 +356,11 @@ update msg model =
                 ]
             )
 
-        CardGenerated card ->
-            { model | sampleCard = Just card }
+        SampleCardGenerated card ->
+            { model
+                | sampleCard = card
+                , errorMessage = Nothing
+            }
                 |> withCommand Cmd.none
 
         StringsEntered input ->
@@ -376,56 +379,65 @@ update msg model =
             ( newModel, generateSampleCard newModel )
 
         SubmitSettings ->
-            ( model, sendToOutbox (CreateCards model) )
+            ( model, generateCards model )
+
+        CardsGenerated cardResult ->
+            case cardResult of
+                Ok cards ->
+                    { model | errorMessage = Nothing }
+                        |> withCommand (sendToOutbox <| CreateCards cards)
+
+                Err errString ->
+                    { model | errorMessage = Just errString }
+                        |> withCommand Cmd.none
 
 
 
 -- GENERATORS
 
 
-generateOrdered : Model -> Random.Generator Card
+generateOrdered : Model -> Random.Generator (Result String Card)
 generateOrdered { size, rangeMinimum, rangeMaximum } =
     let
-        split =
-            (rangeMaximum - rangeMinimum) // size
+        rangeLen =
+            1 + rangeMaximum - rangeMinimum
+
+        rangeLongEnough =
+            rangeLen >= size * size
+
+        valuesPerColumn =
+            rangeLen // size
     in
-    List.range 0 (size - 1)
-        |> List.map ((+) rangeMinimum << (*) split)
-        |> Random.Extra.traverse
-            (\v ->
-                Random.Set.set
-                    size
-                    (Random.int v (v + split))
-            )
-        |> Random.map
-            (List.map (List.map String.fromInt << Set.toList))
+    Random.Extra.result
+        (Random.constant rangeLongEnough)
+        (Random.constant "Fehler: Zahlenbereich nicht groß genug um Bingokarten zu erzeugen.")
+        (List.range rangeMinimum rangeMaximum
+            |> List.map String.fromInt
+            |> List.groupsOf valuesPerColumn
+            |> List.map Random.List.shuffle
+            |> List.map (Random.map (List.take size))
+            |> Random.Extra.combine
+        )
 
 
-generateFrom : Int -> List String -> Random.Generator Card
-generateFrom size strings =
-    case strings of
-        [] ->
-            Random.list
-                (size ^ 2)
-                (Random.constant " ")
-                |> Random.map (List.groupsOf size)
-
-        [ x ] ->
-            Random.list
-                (size ^ 2)
-                (Random.constant x)
-                |> Random.map (List.groupsOf size)
-
-        x :: xs ->
-            Random.Set.set
-                (size ^ 2)
-                (Random.uniform x xs)
-                |> Random.map Set.toList
-                |> Random.andThen Random.List.shuffle
-                |> Random.map (List.groupsOf size)
+generateFrom : Int -> List String -> Random.Generator (Result String Card)
+generateFrom size values =
+    let
+        enoughValues =
+            List.length values >= size * size
+    in
+    Random.Extra.result
+        (Random.constant enoughValues)
+        (Random.constant "Fehler: nicht genügend Werte um Karte zu erzeugen.")
+        (Random.List.shuffle values
+            |> Random.map
+                (List.take (size * size)
+                    >> List.groupsOf size
+                )
+        )
 
 
-cardGenerator : Model -> Random.Generator Card
+cardGenerator : Model -> Random.Generator (Result String Card)
 cardGenerator model =
     case model.typeOfBingo of
         Strings ->
@@ -447,7 +459,19 @@ cardGenerator model =
 
 generateSampleCard : Model -> Cmd Msg
 generateSampleCard =
-    Random.generate CardGenerated << cardGenerator
+    Random.generate SampleCardGenerated << cardGenerator
+
+
+generateCards : Model -> Cmd Msg
+generateCards model =
+    let
+        listOfCards =
+            Random.list
+                model.numberOfCards
+                (cardGenerator model)
+                |> Random.map Result.Extra.combine
+    in
+    Random.generate CardsGenerated listOfCards
 
 
 
@@ -775,7 +799,7 @@ viewSettings model =
 viewSampleCard : Model -> Element msg
 viewSampleCard model =
     case model.sampleCard of
-        Just card ->
+        Ok card ->
             column
                 [ width fill ]
                 [ el
@@ -847,12 +871,23 @@ viewSampleCard model =
                     )
                 ]
 
-        Nothing ->
-            el [] (text "Here won't be Card")
+        Err errString ->
+            el [] (text errString)
 
 
-viewSubmit : Element Msg
-viewSubmit =
+viewSubmit : Maybe String -> Element Msg
+viewSubmit errorMessage =
+    let
+        error =
+            case errorMessage of
+                Just msg ->
+                    el
+                        [ Font.color <| rgb 255 0 0 ]
+                        (text msg)
+
+                Nothing ->
+                    none
+    in
     row
         [ Font.size 12
         , Font.color colors.color
@@ -866,6 +901,7 @@ viewSubmit =
             , label =
                 text "Karten erzeugen"
             }
+        , error
         ]
 
 
@@ -887,7 +923,7 @@ view model =
                 ]
                 [ viewInfobox
                 , viewSettings model
-                , viewSubmit
+                , viewSubmit model.errorMessage
                 ]
             , column
                 [ width <| px 600
@@ -949,8 +985,16 @@ modelEncoder model =
         , ( "sampleCard", Encode.null )
         , ( "numberOfCards", Encode.int model.numberOfCards )
         , ( "rawNumberOfCardsInput", Encode.string <| inputToString model.rawNumberOfCardsInput )
-        , ( "createdCards", Encode.null )
         ]
+
+
+cardsEncoder : List Card -> Encode.Value
+cardsEncoder cards =
+    Encode.list
+        (Encode.list
+            (Encode.list Encode.string)
+        )
+        cards
 
 
 sendToOutbox : OutgoingMessageType -> Cmd msg
@@ -958,14 +1002,14 @@ sendToOutbox outMsgType =
     case outMsgType of
         SaveState model ->
             Encode.object
-                [ ( "model", modelEncoder model )
+                [ ( "payload", modelEncoder model )
                 , ( "type", Encode.string "SaveState" )
                 ]
                 |> outbox
 
-        CreateCards model ->
+        CreateCards cards ->
             Encode.object
-                [ ( "model", modelEncoder model )
+                [ ( "payload", cardsEncoder cards )
                 , ( "type", Encode.string "CreateCards" )
                 ]
                 |> outbox
