@@ -18,7 +18,6 @@ export interface Model {
     sampleSheet: null,
     numberOfCards: number,
     rawNumberOfCardsInput: string,
-    createdCards: null
 }
 
 
@@ -42,5 +41,4 @@ export const initModel: Model = {
     sampleSheet: null,
     numberOfCards: 1,
     rawNumberOfCardsInput: "1",
-    createdCards: null
 };

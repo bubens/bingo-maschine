@@ -1,7 +1,7 @@
 //@ts-ignore
 import { Elm } from "./elm";
 import * as Config from "./config";
-import * as Pdf from "jspdf";
+import * as Cards from "./cards";
 
 const getStoredModel = (key: string, fallback: Config.Model): Config.Model => {
     const rawString = window.localStorage.getItem(key);
@@ -30,18 +30,20 @@ type MessageType =
 
 type IncomingMessage = {
     type: MessageType,
-    model: Config.Model
+    payload: any
 }
 
 
-const portRouter = ({ type, model }: IncomingMessage): void => {
-    if (type === "SaveState") {
+const portRouter = (msg: IncomingMessage): void => {
+    if (msg.type === "SaveState") {
+        const model = msg.payload;
         const dataString = JSON.stringify(model);
         localStorage.setItem(Config.storageKey, dataString);
         localStorage.getItem(Config.storageKey);
     }
-    else if (type === "CreateCards") {
-        alert(model.numberOfCards + " Cards created");
+    else if (msg.type === "CreateCards") {
+        const cards = msg.payload;
+        Cards.create(cards);
     }
 };
 
@@ -57,4 +59,6 @@ function main(elm: Elm, initModel: Config.Model): void {
     app.ports.outbox.subscribe(portRouter);
 }
 
-main(Elm.Main, Config.initModel);
+
+
+main(<Elm>Elm.Main, Config.initModel);
