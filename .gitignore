@@ -4,3 +4,4 @@ rel/
 tmp*/
 index.html
 !html/index.html
+.~lock*
