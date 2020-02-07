@@ -50,9 +50,8 @@ type Selection
 
 
 type Msg
-    = Noop
-    | Selected Selection
-    | StringsEntered String
+    = SettingSelected Selection
+    | ValuesEntered String
     | SampleCardGenerated (Result String Card)
     | CardsGenerated (Result String (List Card))
     | SubmitSettings
@@ -341,10 +340,7 @@ updateSettings selection model =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        Noop ->
-            ( model, Cmd.none )
-
-        Selected selection ->
+        SettingSelected selection ->
             let
                 nextModel =
                     updateSettings selection model
@@ -363,7 +359,7 @@ update msg model =
             }
                 |> withCommand Cmd.none
 
-        StringsEntered input ->
+        ValuesEntered input ->
             let
                 nextStrings =
                     String.split ";" input
@@ -414,8 +410,10 @@ generateOrdered { size, rangeMinimum, rangeMaximum } =
         (List.range rangeMinimum rangeMaximum
             |> List.map String.fromInt
             |> List.groupsOf valuesPerColumn
-            |> List.map Random.List.shuffle
-            |> List.map (Random.map (List.take size))
+            |> List.map
+                (Random.List.shuffle
+                    >> Random.map (List.take size)
+                )
             |> Random.Extra.combine
         )
 
@@ -552,7 +550,7 @@ viewTypeSelection : TypeOfBingo -> Element Msg
 viewTypeSelection typeOfBingo =
     Input.radioRow
         [ spacing 10 ]
-        { onChange = Selected << BingoType
+        { onChange = SettingSelected << BingoType
         , selected = Just typeOfBingo
         , label =
             viewSettingsLabel "Bingo-Art wählen:"
@@ -585,7 +583,7 @@ viewSelectSize model =
         [ Input.slider
             [ behindContent track ]
             { onChange =
-                Selected << Size << round
+                SettingSelected << Size << round
             , label =
                 viewSettingsLabel "Größe wählen:"
             , min = 3
@@ -618,7 +616,7 @@ viewStringSettings rawInput =
         , height <| px 200
         , width fill
         ]
-        { onChange = StringsEntered
+        { onChange = ValuesEntered
         , text = rawInput
         , placeholder =
             Just <|
@@ -654,7 +652,7 @@ viewInput labelText selection input =
         , centerX
         , Font.family [ Font.monospace ]
         ]
-        { onChange = Selected << selection
+        { onChange = SettingSelected << selection
         , text = valueText
         , placeholder = Nothing
         , label =
@@ -683,7 +681,7 @@ viewNumberSettings model =
                 , width fill
                 , spacingXY 20 0
                 ]
-                { onChange = Selected << Ordered
+                { onChange = SettingSelected << Ordered
                 , selected = Just model.ordered
                 , label =
                     Input.labelLeft
@@ -732,7 +730,7 @@ viewSelectJoker model =
             , width fill
             , spacingXY 20 0
             ]
-            { onChange = Selected << Joker
+            { onChange = SettingSelected << Joker
             , selected = Just model.joker
             , label =
                 Input.labelLeft
