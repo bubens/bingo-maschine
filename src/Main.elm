@@ -45,7 +45,7 @@ type Selection
     | Minimum String
     | Maximum String
     | Ordered Bool
-    | Joker Bool
+    | WithJoker Bool
     | NumberOfCards String
 
 
@@ -79,8 +79,13 @@ type alias Directions =
     }
 
 
+type CellValue
+    = ValueField String
+    | JokerField
+
+
 type alias Card =
-    List (List String)
+    List (List CellValue)
 
 
 
@@ -307,7 +312,7 @@ updateSettings selection model =
         Ordered isOrdered ->
             { model | ordered = isOrdered }
 
-        Joker isWithJoker ->
+        WithJoker isWithJoker ->
             { model | joker = isWithJoker }
 
         NumberOfCards n ->
@@ -392,8 +397,38 @@ update msg model =
 -- GENERATORS
 
 
+toCard : Bool -> Int -> List (List String) -> Card
+toCard hasJoker size card =
+    let
+        jokerIndex =
+            size // 2
+
+        isEven =
+            modBy 2 size == 0
+    in
+    List.indexedMap
+        (\colIndex column ->
+            List.indexedMap
+                (\cellIndex cell ->
+                    if not hasJoker || isEven then
+                        ValueField cell
+
+                    else if not (cellIndex == jokerIndex) then
+                        ValueField cell
+
+                    else if not (colIndex == jokerIndex) then
+                        ValueField cell
+
+                    else
+                        JokerField
+                )
+                column
+        )
+        card
+
+
 generateOrdered : Model -> Random.Generator (Result String Card)
-generateOrdered { size, rangeMinimum, rangeMaximum } =
+generateOrdered { joker, size, rangeMinimum, rangeMaximum } =
     let
         rangeLen =
             1 + rangeMaximum - rangeMinimum
@@ -406,7 +441,7 @@ generateOrdered { size, rangeMinimum, rangeMaximum } =
     in
     Random.Extra.result
         (Random.constant rangeLongEnough)
-        (Random.constant "Fehler: Zahlenbereich nicht groß genug um Bingokarten zu erzeugen.")
+        (Random.constant "Zahlenbereich nicht groß genug um Bingokarten zu erzeugen.")
         (List.range rangeMinimum rangeMaximum
             |> List.map String.fromInt
             |> List.groupsOf valuesPerColumn
@@ -415,22 +450,24 @@ generateOrdered { size, rangeMinimum, rangeMaximum } =
                     >> Random.map (List.take size)
                 )
             |> Random.Extra.combine
+            |> Random.map (toCard joker size)
         )
 
 
-generateFrom : Int -> List String -> Random.Generator (Result String Card)
-generateFrom size values =
+generateFrom : Model -> List String -> Random.Generator (Result String Card)
+generateFrom { size, joker } values =
     let
         enoughValues =
             List.length values >= size * size
     in
     Random.Extra.result
         (Random.constant enoughValues)
-        (Random.constant "Fehler: nicht genügend Werte um Karte zu erzeugen.")
+        (Random.constant "Nicht genügend Werte um Karte zu erzeugen.")
         (Random.List.shuffle values
             |> Random.map
                 (List.take (size * size)
                     >> List.groupsOf size
+                    >> toCard joker size
                 )
         )
 
@@ -440,7 +477,7 @@ cardGenerator model =
     case model.typeOfBingo of
         Strings ->
             generateFrom
-                model.size
+                model
                 (Set.toList model.strings)
 
         Numbers ->
@@ -449,7 +486,7 @@ cardGenerator model =
 
             else
                 generateFrom
-                    model.size
+                    model
                     (List.range model.rangeMinimum model.rangeMaximum
                         |> List.map String.fromInt
                     )
@@ -730,7 +767,7 @@ viewSelectJoker model =
             , width fill
             , spacingXY 20 0
             ]
-            { onChange = SettingSelected << Joker
+            { onChange = SettingSelected << WithJoker
             , selected = Just model.joker
             , label =
                 Input.labelLeft
@@ -794,8 +831,56 @@ viewSettings model =
         ]
 
 
-viewSampleCard : Model -> Element msg
-viewSampleCard model =
+viewSampleCard : Card -> Element msg
+viewSampleCard card =
+    List.map
+        (\col ->
+            List.map
+                (\cell ->
+                    let
+                        value =
+                            case cell of
+                                ValueField str ->
+                                    el
+                                        [ width shrink
+                                        , height shrink
+                                        , centerX
+                                        , centerY
+                                        , Font.family [ Font.monospace ]
+                                        ]
+                                        (text str)
+
+                                JokerField ->
+                                    el
+                                        [ width shrink
+                                        , height shrink
+                                        , centerX
+                                        , centerY
+                                        ]
+                                        (html <| Joker.render 50 50)
+                    in
+                    el
+                        [ height <| px 60
+                        , width fill
+                        , Border.width 1
+                        , Border.color colors.brightBackground
+                        ]
+                        value
+                )
+                col
+                |> column
+                    [ width <| fillPortion 1 ]
+        )
+        card
+        |> row
+            [ width fill
+            , Border.width 3
+            , Border.color colors.brightBackground
+            ]
+
+
+viewResult : Model -> Element msg
+viewResult model =
     case model.sampleCard of
         Ok card ->
             column
@@ -806,71 +891,31 @@ viewSampleCard model =
                     , centerX
                     ]
                     (text "Beispiel-Zettel")
-                , row
-                    [ width fill
-                    , Border.width 3
-                    , Border.color colors.brightBackground
-                    ]
-                    (List.indexedMap
-                        (\outerIndex col ->
-                            List.indexedMap
-                                (\innerIndex x ->
-                                    let
-                                        halfSize =
-                                            toFloat (model.size - 1)
-                                                / 2
-                                                |> round
-
-                                        value =
-                                            if
-                                                not model.joker
-                                                    || (modBy 2 model.size == 0)
-                                                    || not (outerIndex == halfSize)
-                                                    || not (innerIndex == halfSize)
-                                            then
-                                                el
-                                                    [ width shrink
-                                                    , height shrink
-                                                    , centerX
-                                                    , centerY
-                                                    , Font.family [ Font.monospace ]
-                                                    ]
-                                                    (text x)
-
-                                            else
-                                                el
-                                                    [ width shrink
-                                                    , height shrink
-                                                    , centerX
-                                                    , centerY
-                                                    ]
-                                                    (html <| Joker.render 50 50)
-                                    in
-                                    el
-                                        [ height <| px 60
-                                        , width fill
-                                        , Border.width 1
-                                        , Border.color colors.brightBackground
-                                        ]
-                                        value
-                                )
-                                col
-                                |> (::)
-                                    (el
-                                        [ height <| fillPortion 2
-                                        , Font.bold
-                                        ]
-                                        (text "B")
-                                    )
-                                |> column
-                                    [ width <| fillPortion 1 ]
-                        )
-                        card
-                    )
+                , viewSampleCard card
                 ]
 
         Err errString ->
-            el [] (text errString)
+            column
+                [ width fill
+                , centerX
+                , centerY
+                , Border.solid
+                , Border.width 2
+                , Border.color colors.text
+                , padding 5
+                , spacing 5
+                ]
+                [ el
+                    [ Font.size 28
+                    , centerX
+                    ]
+                    (text "Fehler:")
+                , el
+                    [ Font.size 20
+                    , centerX
+                    ]
+                    (text errString)
+                ]
 
 
 viewSubmit : Maybe String -> Element Msg
@@ -927,7 +972,7 @@ view model =
                 [ width <| px 600
                 , height fill
                 ]
-                [ viewSampleCard model ]
+                [ viewResult model ]
             ]
         ]
         |> asDocument model.title
@@ -990,7 +1035,16 @@ cardsEncoder : List Card -> Encode.Value
 cardsEncoder cards =
     Encode.list
         (Encode.list
-            (Encode.list Encode.string)
+            (Encode.list
+                (\val ->
+                    case val of
+                        ValueField str ->
+                            Encode.string str
+
+                        JokerField ->
+                            Encode.string "%_JOKER_%"
+                )
+            )
         )
         cards
 
