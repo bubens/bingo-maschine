@@ -20,9 +20,11 @@ export interface Model {
     rawNumberOfCardsInput: string,
 }
 
-
 // VALUES
-export const storageKey = "$model";
+export const storageKeys = {
+    model: "$model",
+    imageData: "$joker"
+};
 
 export const elmElementId = "#app_goes_here";
 

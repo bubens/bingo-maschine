@@ -114,6 +114,7 @@ type alias Model =
 type OutgoingMessageType
     = SaveState Model
     | CreateCards (List Card)
+    | SendJoker String
 
 
 
@@ -194,7 +195,13 @@ init modelFromStorage =
         generator =
             cardGenerator initModel
     in
-    ( initModel, Random.generate SampleCardGenerated generator )
+    initModel
+        |> withCommand
+            (Cmd.batch
+                [ Random.generate SampleCardGenerated generator
+                , sendToOutbox (SendJoker <| Joker.asString 50 50)
+                ]
+            )
 
 
 
@@ -1063,6 +1070,13 @@ sendToOutbox outMsgType =
             Encode.object
                 [ ( "payload", cardsEncoder cards )
                 , ( "type", Encode.string "CreateCards" )
+                ]
+                |> outbox
+
+        SendJoker imgData ->
+            Encode.object
+                [ ( "payload", Encode.string imgData )
+                , ( "type", Encode.string "SendJoker" )
                 ]
                 |> outbox
 
