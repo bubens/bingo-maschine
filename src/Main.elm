@@ -1,7 +1,7 @@
 port module Main exposing (main)
 
 import Browser exposing (Document)
-import Element exposing (..)
+import Element exposing (Element)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
@@ -17,10 +17,6 @@ import Random.Extra
 import Random.List
 import Result.Extra
 import Set exposing (Set)
-
-
-type Hole
-    = Hole
 
 
 
@@ -210,11 +206,11 @@ init modelFromStorage =
 
 colors : Colors
 colors =
-    { text = rgb255 244 243 241
-    , darkText = rgb255 236 231 228
-    , color = rgb255 223 216 211
-    , brightBackground = rgb255 9 122 108
-    , darkBackground = rgb255 0 66 86
+    { text = Element.rgb255 244 243 241
+    , darkText = Element.rgb255 236 231 228
+    , color = Element.rgb255 223 216 211
+    , brightBackground = Element.rgb255 9 122 108
+    , darkBackground = Element.rgb255 0 66 86
     }
 
 
@@ -533,12 +529,12 @@ asDocument title body =
             [ Background.color colors.darkBackground
             , Font.color colors.text
             ]
-            (column
-                [ height <| px 800
-                , width <| px 800
-                , centerX
-                , centerY
-                , spacing 20
+            (Element.column
+                [ Element.height <| Element.px 800
+                , Element.width <| Element.px 800
+                , Element.centerX
+                , Element.centerY
+                , Element.spacing 20
                 ]
                 [ body ]
             )
@@ -547,39 +543,39 @@ asDocument title body =
 
 viewHeader : String -> Element msg
 viewHeader title =
-    row
+    Element.row
         [ Font.size 28
         , Font.color colors.color
-        , width <| fill
-        , paddingEach
+        , Element.width <| Element.fill
+        , Element.paddingEach
             { directions
                 | top = 20
                 , bottom = 20
             }
         ]
-        [ el
-            [ centerX
-            , width <| fill
+        [ Element.el
+            [ Element.centerX
+            , Element.width <| Element.fill
             , Border.widthEach
                 { directions
                     | bottom = 2
                 }
             ]
-            (text title)
+            (Element.text title)
         ]
 
 
 viewInfobox : Element msg
 viewInfobox =
-    row
+    Element.row
         [ Font.size 12
         , Font.color colors.color
-        , width fill
+        , Element.width Element.fill
         , Font.justify
-        , padding 0
+        , Element.padding 0
         ]
-        [ paragraph []
-            [ text "Erstelle jetzt deine top-starke Bingo-Zettel im Browser. Jetzt neu im praktischen PDF-Format."
+        [ Element.paragraph []
+            [ Element.text "Erstelle jetzt deine top-starke Bingo-Zettel im Browser. Jetzt neu im praktischen PDF-Format."
             ]
         ]
 
@@ -589,23 +585,23 @@ viewSettingsLabel label =
     Input.labelAbove
         [ Font.bold
         , Font.size 18
-        , spacing 10
-        , paddingXY 0 5
+        , Element.spacing 10
+        , Element.paddingXY 0 5
         ]
-        (text label)
+        (Element.text label)
 
 
 viewTypeSelection : TypeOfBingo -> Element Msg
 viewTypeSelection typeOfBingo =
     Input.radioRow
-        [ spacing 10 ]
+        [ Element.spacing 10 ]
         { onChange = SettingSelected << BingoType
         , selected = Just typeOfBingo
         , label =
             viewSettingsLabel "Bingo-Art wählen:"
         , options =
-            [ Input.option Numbers (el [ Font.alignLeft ] (text "Klassisch"))
-            , Input.option Strings (text "Eigene Eingaben")
+            [ Input.option Numbers (Element.el [ Font.alignLeft ] (Element.text "Klassisch"))
+            , Input.option Strings (Element.text "Eigene Eingaben")
             ]
         }
 
@@ -614,23 +610,23 @@ viewSelectSize : Model -> Element Msg
 viewSelectSize model =
     let
         track =
-            el
-                [ width fill
-                , height (px 2)
-                , centerY
+            Element.el
+                [ Element.width Element.fill
+                , Element.height (Element.px 2)
+                , Element.centerY
                 , Background.color
                     colors.brightBackground
                 , Border.rounded 2
                 ]
-                none
+                Element.none
 
         thumb =
             Input.defaultThumb
     in
-    column
-        [ width fill ]
+    Element.column
+        [ Element.width Element.fill ]
         [ Input.slider
-            [ behindContent track ]
+            [ Element.behindContent track ]
             { onChange =
                 SettingSelected << Size << round
             , label =
@@ -641,19 +637,19 @@ viewSelectSize model =
             , step = Just 1
             , value = toFloat model.size
             }
-        , paragraph []
-            [ el
+        , Element.paragraph []
+            [ Element.el
                 [ Font.bold
-                , centerY
+                , Element.centerY
                 ]
-                (text "Reihen/Spalten: ")
-            , el
+                (Element.text "Reihen/Spalten: ")
+            , Element.el
                 [ Font.family
                     [ Font.monospace
                     ]
                 , Font.size 20
                 ]
-                (text <| String.fromInt model.size)
+                (Element.text <| String.fromInt model.size)
             ]
         ]
 
@@ -662,8 +658,8 @@ viewStringSettings : String -> Element Msg
 viewStringSettings rawInput =
     Input.multiline
         [ Font.color colors.darkBackground
-        , height <| px 200
-        , width fill
+        , Element.height <| Element.px 200
+        , Element.width Element.fill
         ]
         { onChange = ValuesEntered
         , text = rawInput
@@ -671,7 +667,7 @@ viewStringSettings rawInput =
             Just <|
                 Input.placeholder
                     []
-                    (text "Eigene Eingaben; durch Strichpunkt getrennt; so...")
+                    (Element.text "Eigene Eingaben; durch Strichpunkt getrennt; so...")
         , label = viewSettingsLabel "Eigene Eingaben:"
         , spellcheck = False
         }
@@ -692,13 +688,13 @@ viewInput labelText selection input =
                     ( string, 5 )
     in
     Input.text
-        [ Border.glow (rgb255 255 0 0) glow
+        [ Border.glow (Element.rgb255 255 0 0) glow
         , Font.color colors.darkBackground
         , Font.size 25
-        , height <| px 30
-        , padding 0
-        , spacing 0
-        , centerX
+        , Element.height <| Element.px 30
+        , Element.padding 0
+        , Element.spacing 0
+        , Element.centerX
         , Font.family [ Font.monospace ]
         ]
         { onChange = SettingSelected << selection
@@ -707,9 +703,9 @@ viewInput labelText selection input =
         , label =
             Input.labelLeft
                 [ Font.size 14
-                , centerY
+                , Element.centerY
                 ]
-                (text (labelText ++ ":"))
+                (Element.text (labelText ++ ":"))
         }
 
 
@@ -717,18 +713,18 @@ viewNumberSettings : Model -> Element Msg
 viewNumberSettings model =
     let
         header =
-            el
+            Element.el
                 [ Font.size 18
                 , Font.bold
-                , paddingXY 0 5
+                , Element.paddingXY 0 5
                 ]
-                (text "Einstellungen Zahlen:")
+                (Element.text "Einstellungen Zahlen:")
 
         selectOrdered =
             Input.radioRow
-                [ centerY
-                , width fill
-                , spacingXY 20 0
+                [ Element.centerY
+                , Element.width Element.fill
+                , Element.spacingXY 20 0
                 ]
                 { onChange = SettingSelected << Ordered
                 , selected = Just model.ordered
@@ -736,33 +732,33 @@ viewNumberSettings model =
                     Input.labelLeft
                         [ Font.family [ Font.monospace ]
                         , Font.size 14
-                        , centerY
+                        , Element.centerY
                         ]
-                        (text "Geordnet:")
+                        (Element.text "Geordnet:")
                 , options =
                     [ Input.option
                         True
-                        (el
+                        (Element.el
                             [ Font.size 18
                             , Font.color colors.darkText
                             ]
-                            (text "Ja")
+                            (Element.text "Ja")
                         )
                     , Input.option
                         False
-                        (el
+                        (Element.el
                             [ Font.size 18
                             , Font.color colors.darkText
                             ]
-                            (text "Nein")
+                            (Element.text "Nein")
                         )
                     ]
                 }
     in
-    column
-        [ width fill
-        , spacing 5
-        , height <| px 200
+    Element.column
+        [ Element.width Element.fill
+        , Element.spacing 5
+        , Element.height <| Element.px 200
         ]
         [ header
         , viewInput "Minimum" Minimum model.rawMinimumInput
@@ -775,9 +771,9 @@ viewSelectJoker : Model -> Element Msg
 viewSelectJoker model =
     if modBy 2 model.size == 1 then
         Input.radioRow
-            [ centerY
-            , width fill
-            , spacingXY 20 0
+            [ Element.centerY
+            , Element.width Element.fill
+            , Element.spacingXY 20 0
             ]
             { onChange = SettingSelected << WithJoker
             , selected = Just model.joker
@@ -785,31 +781,31 @@ viewSelectJoker model =
                 Input.labelLeft
                     [ Font.family [ Font.monospace ]
                     , Font.size 14
-                    , centerY
+                    , Element.centerY
                     ]
-                    (text "Jokerfeld:")
+                    (Element.text "Jokerfeld:")
             , options =
                 [ Input.option
                     True
-                    (el
+                    (Element.el
                         [ Font.size 18
                         , Font.color colors.darkText
                         ]
-                        (text "Ja")
+                        (Element.text "Ja")
                     )
                 , Input.option
                     False
-                    (el
+                    (Element.el
                         [ Font.size 18
                         , Font.color colors.darkText
                         ]
-                        (text "Nein")
+                        (Element.text "Nein")
                     )
                 ]
             }
 
     else
-        none
+        Element.none
 
 
 viewSelectNumberOfCards : Model -> Element Msg
@@ -828,12 +824,12 @@ viewSettings model =
                 Numbers ->
                     viewNumberSettings model
     in
-    column
+    Element.column
         [ Font.size 12
         , Font.color colors.color
-        , width fill
-        , height fill
-        , spacing 20
+        , Element.width Element.fill
+        , Element.height Element.fill
+        , Element.spacing 20
         ]
         [ viewSelectSize model
         , viewTypeSelection model.typeOfBingo
@@ -853,39 +849,39 @@ viewSampleCard card =
                         value =
                             case cell of
                                 ValueField str ->
-                                    el
-                                        [ width shrink
-                                        , height shrink
-                                        , centerX
-                                        , centerY
+                                    Element.el
+                                        [ Element.width Element.shrink
+                                        , Element.height Element.shrink
+                                        , Element.centerX
+                                        , Element.centerY
                                         , Font.family [ Font.monospace ]
                                         ]
-                                        (text str)
+                                        (Element.text str)
 
                                 JokerField ->
-                                    el
-                                        [ width shrink
-                                        , height shrink
-                                        , centerX
-                                        , centerY
+                                    Element.el
+                                        [ Element.width Element.shrink
+                                        , Element.height Element.shrink
+                                        , Element.centerX
+                                        , Element.centerY
                                         ]
-                                        (html <| Joker.render 50 50)
+                                        (Element.html <| Joker.render 50 50)
                     in
-                    el
-                        [ height <| px 60
-                        , width fill
+                    Element.el
+                        [ Element.height <| Element.px 60
+                        , Element.width Element.fill
                         , Border.width 1
                         , Border.color colors.brightBackground
                         ]
                         value
                 )
                 col
-                |> column
-                    [ width <| fillPortion 1 ]
+                |> Element.column
+                    [ Element.width <| Element.fillPortion 1 ]
         )
         card
-        |> row
-            [ width fill
+        |> Element.row
+            [ Element.width Element.fill
             , Border.width 3
             , Border.color colors.brightBackground
             ]
@@ -895,38 +891,38 @@ viewResult : Model -> Element msg
 viewResult model =
     case model.sampleCard of
         Ok card ->
-            column
-                [ width fill ]
-                [ el
+            Element.column
+                [ Element.width Element.fill ]
+                [ Element.el
                     [ Font.size 24
-                    , padding 5
-                    , centerX
+                    , Element.padding 5
+                    , Element.centerX
                     ]
-                    (text "Beispiel-Zettel")
+                    (Element.text "Beispiel-Zettel")
                 , viewSampleCard card
                 ]
 
         Err errString ->
-            column
-                [ width fill
-                , centerX
-                , centerY
+            Element.column
+                [ Element.width Element.fill
+                , Element.centerX
+                , Element.centerY
                 , Border.solid
                 , Border.width 2
                 , Border.color colors.text
-                , padding 5
-                , spacing 5
+                , Element.padding 5
+                , Element.spacing 5
                 ]
-                [ el
+                [ Element.el
                     [ Font.size 28
-                    , centerX
+                    , Element.centerX
                     ]
-                    (text "Fehler:")
-                , el
+                    (Element.text "Fehler:")
+                , Element.el
                     [ Font.size 20
-                    , centerX
+                    , Element.centerX
                     ]
-                    (text errString)
+                    (Element.text errString)
                 ]
 
 
@@ -936,25 +932,25 @@ viewSubmit errorMessage =
         error =
             case errorMessage of
                 Just msg ->
-                    el
-                        [ Font.color <| rgb 255 0 0 ]
-                        (text msg)
+                    Element.el
+                        [ Font.color <| Element.rgb255 255 0 0 ]
+                        (Element.text msg)
 
                 Nothing ->
-                    none
+                    Element.none
     in
-    row
+    Element.row
         [ Font.size 12
         , Font.color colors.color
-        , width fill
-        , height fill
-        , spacing 20
+        , Element.width Element.fill
+        , Element.height Element.fill
+        , Element.spacing 20
         ]
         [ Input.button
             []
             { onPress = Just SubmitSettings
             , label =
-                text "Karten erzeugen"
+                Element.text "Karten erzeugen"
             }
         , error
         ]
@@ -966,23 +962,23 @@ view model =
         header =
             viewHeader model.title
     in
-    column
+    Element.column
         []
         [ header
-        , row
-            [ spacing 20 ]
-            [ column
-                [ width <| px 200
-                , height fill
-                , spacing 20
+        , Element.row
+            [ Element.spacing 20 ]
+            [ Element.column
+                [ Element.width <| Element.px 200
+                , Element.height Element.fill
+                , Element.spacing 20
                 ]
                 [ viewInfobox
                 , viewSettings model
                 , viewSubmit model.errorMessage
                 ]
-            , column
-                [ width <| px 600
-                , height fill
+            , Element.column
+                [ Element.width <| Element.px 600
+                , Element.height Element.fill
                 ]
                 [ viewResult model ]
             ]
