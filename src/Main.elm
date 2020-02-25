@@ -193,7 +193,7 @@ init modelFromStorage =
                 |> Result.withDefault fallbackModel
 
         generator =
-            cardGenerator initModel
+            generateCard initModel
     in
     initModel
         |> withCommand
@@ -454,15 +454,20 @@ generateOrdered { joker, size, rangeMinimum, rangeMaximum } =
             |> List.groupsOf valuesPerColumn
             |> List.map
                 (Random.List.shuffle
-                    >> Random.map (List.take size)
+                    >> Random.map
+                        -- The result of Random.List.shuffle appears to be more random
+                        -- at the end of the list. It's probably related to this:
+                        -- https://github.com/elm-community/random-extra/issues/24
+                        -- That's why the list is reversed.
+                        (List.take size << List.reverse)
                 )
             |> Random.Extra.combine
             |> Random.map (toCard joker size)
         )
 
 
-generateFrom : Model -> List String -> Random.Generator (Result String Card)
-generateFrom { size, joker } values =
+generateCardFromValues : Model -> List String -> Random.Generator (Result String Card)
+generateCardFromValues { size, joker } values =
     let
         enoughValues =
             List.length values >= size * size
@@ -479,11 +484,11 @@ generateFrom { size, joker } values =
         )
 
 
-cardGenerator : Model -> Random.Generator (Result String Card)
-cardGenerator model =
+generateCard : Model -> Random.Generator (Result String Card)
+generateCard model =
     case model.typeOfBingo of
         Strings ->
-            generateFrom
+            generateCardFromValues
                 model
                 (Set.toList model.strings)
 
@@ -492,7 +497,7 @@ cardGenerator model =
                 generateOrdered model
 
             else
-                generateFrom
+                generateCardFromValues
                     model
                     (List.range model.rangeMinimum model.rangeMaximum
                         |> List.map String.fromInt
@@ -501,7 +506,7 @@ cardGenerator model =
 
 generateSampleCard : Model -> Cmd Msg
 generateSampleCard =
-    Random.generate SampleCardGenerated << cardGenerator
+    Random.generate SampleCardGenerated << generateCard
 
 
 generateCards : Model -> Cmd Msg
@@ -510,7 +515,7 @@ generateCards model =
         listOfCards =
             Random.list
                 model.numberOfCards
-                (cardGenerator model)
+                (generateCard model)
                 |> Random.map Result.Extra.combine
     in
     Random.generate CardsGenerated listOfCards
