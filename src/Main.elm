@@ -41,7 +41,7 @@ type Selection
     | Minimum String
     | Maximum String
     | Ordered Bool
-    | WithJoker Bool
+    | WithJoker (Maybe Bool)
     | NumberOfCards String
 
 
@@ -315,8 +315,13 @@ updateSettings selection model =
         Ordered isOrdered ->
             { model | ordered = isOrdered }
 
-        WithJoker isWithJoker ->
-            { model | joker = isWithJoker }
+        WithJoker maybeWithJoker ->
+            case maybeWithJoker of
+                Just withJoker ->
+                    { model | joker = withJoker }
+
+                Nothing ->
+                    model
 
         NumberOfCards n ->
             let
@@ -521,26 +526,6 @@ generateCards model =
 -- VIEW
 
 
-asDocument : String -> Element msg -> Document msg
-asDocument title body =
-    Document
-        title
-        [ Element.layout
-            [ Background.color colors.darkBackground
-            , Font.color colors.text
-            ]
-            (Element.column
-                [ Element.height <| Element.px 800
-                , Element.width <| Element.px 800
-                , Element.centerX
-                , Element.centerY
-                , Element.spacing 20
-                ]
-                [ body ]
-            )
-        ]
-
-
 viewHeader : String -> Element msg
 viewHeader title =
     Element.row
@@ -575,7 +560,8 @@ viewInfobox =
         , Element.padding 0
         ]
         [ Element.paragraph []
-            [ Element.text "Erstelle jetzt deine top-starke Bingo-Zettel im Browser. Jetzt neu im praktischen PDF-Format."
+            [ Element.text "Erstelle jetzt deine top-starke Bingo-Zettel im. Jetzt neu im praktischen PDF-Format."
+            , Element.text "Alles - inklusive der Erstellung der pdf-Dateien - geschieht im Browser. Außer normale Verkehrsdaten werden keine Daten zum Server übermittelt."
             ]
         ]
 
@@ -594,14 +580,16 @@ viewSettingsLabel label =
 viewTypeSelection : TypeOfBingo -> Element Msg
 viewTypeSelection typeOfBingo =
     Input.radioRow
-        [ Element.spacing 10 ]
+        [ Element.spacing 10
+        , Element.width Element.fill
+        ]
         { onChange = SettingSelected << BingoType
         , selected = Just typeOfBingo
         , label =
             viewSettingsLabel "Bingo-Art wählen:"
         , options =
-            [ Input.option Numbers (Element.el [ Font.alignLeft ] (Element.text "Klassisch"))
-            , Input.option Strings (Element.text "Eigene Eingaben")
+            [ Input.option Numbers (Element.el [ Font.size 14 ] <| Element.text "Klassisch")
+            , Input.option Strings (Element.el [ Font.size 14 ] <| Element.text "Eigene Eingaben")
             ]
         }
 
@@ -624,7 +612,8 @@ viewSelectSize model =
             Input.defaultThumb
     in
     Element.column
-        [ Element.width Element.fill ]
+        [ Element.width Element.fill
+        ]
         [ Input.slider
             [ Element.behindContent track ]
             { onChange =
@@ -668,7 +657,8 @@ viewStringSettings rawInput =
                 Input.placeholder
                     []
                     (Element.text "Eigene Eingaben; durch Strichpunkt getrennt; so...")
-        , label = viewSettingsLabel "Eigene Eingaben:"
+        , label =
+            viewSettingsLabel "Eigene Eingaben:"
         , spellcheck = False
         }
 
@@ -692,6 +682,7 @@ viewInput labelText selection input =
         , Font.color colors.darkBackground
         , Font.size 25
         , Element.height <| Element.px 30
+        , Element.width <| Element.px 90
         , Element.padding 0
         , Element.spacing 0
         , Element.centerX
@@ -731,10 +722,10 @@ viewNumberSettings model =
                 , label =
                     Input.labelLeft
                         [ Font.family [ Font.monospace ]
-                        , Font.size 14
+                        , Font.size 12
                         , Element.centerY
                         ]
-                        (Element.text "Geordnet:")
+                        (Element.paragraph [] [ Element.text "Nach Spalten geordnet:" ])
                 , options =
                     [ Input.option
                         True
@@ -757,8 +748,8 @@ viewNumberSettings model =
     in
     Element.column
         [ Element.width Element.fill
-        , Element.spacing 5
-        , Element.height <| Element.px 200
+        , Element.spacing 10
+        , Element.height <| Element.px 233
         ]
         [ header
         , viewInput "Minimum" Minimum model.rawMinimumInput
@@ -769,48 +760,54 @@ viewNumberSettings model =
 
 viewSelectJoker : Model -> Element Msg
 viewSelectJoker model =
-    if modBy 2 model.size == 1 then
-        Input.radioRow
-            [ Element.centerY
-            , Element.width Element.fill
-            , Element.spacingXY 20 0
-            ]
-            { onChange = SettingSelected << WithJoker
-            , selected = Just model.joker
-            , label =
-                Input.labelLeft
-                    [ Font.family [ Font.monospace ]
-                    , Font.size 14
-                    , Element.centerY
-                    ]
-                    (Element.text "Jokerfeld:")
-            , options =
-                [ Input.option
-                    True
-                    (Element.el
-                        [ Font.size 18
-                        , Font.color colors.darkText
-                        ]
-                        (Element.text "Ja")
-                    )
-                , Input.option
-                    False
-                    (Element.el
-                        [ Font.size 18
-                        , Font.color colors.darkText
-                        ]
-                        (Element.text "Nein")
-                    )
-                ]
-            }
+    let
+        ( color, onchange, selected ) =
+            if modBy 2 model.size == 1 then
+                ( colors.darkText
+                , SettingSelected << WithJoker << Just
+                , Just model.joker
+                )
 
-    else
-        Element.none
+            else
+                ( colors.brightBackground
+                , always (SettingSelected (WithJoker Nothing))
+                , Nothing
+                )
+    in
+    Input.radioRow
+        [ Element.centerY
+        , Element.width Element.fill
+        , Element.spacing 10
+        , Element.height <| Element.px 25
+        ]
+        { onChange = onchange
+        , selected = selected
+        , label =
+            viewSettingsLabel "Jokerfeld:"
+        , options =
+            [ Input.option
+                True
+                (Element.el
+                    [ Font.size 14
+                    , Font.color color
+                    ]
+                    (Element.text "Ja")
+                )
+            , Input.option
+                False
+                (Element.el
+                    [ Font.size 14
+                    , Font.color color
+                    ]
+                    (Element.text "Nein")
+                )
+            ]
+        }
 
 
 viewSelectNumberOfCards : Model -> Element Msg
 viewSelectNumberOfCards model =
-    viewInput "Number of Cards" NumberOfCards model.rawNumberOfCardsInput
+    viewInput "Anzahl Karten" NumberOfCards model.rawNumberOfCardsInput
 
 
 viewSettings : Model -> Element Msg
@@ -832,10 +829,9 @@ viewSettings model =
         , Element.spacing 20
         ]
         [ viewSelectSize model
+        , viewSelectJoker model
         , viewTypeSelection model.typeOfBingo
         , settings
-        , viewSelectJoker model
-        , viewSelectNumberOfCards model
         ]
 
 
@@ -865,10 +861,10 @@ viewSampleCard card =
                                         , Element.centerX
                                         , Element.centerY
                                         ]
-                                        (Element.html <| Joker.render 50 50)
+                                        (Element.html <| Joker.render 30 30)
                     in
                     Element.el
-                        [ Element.height <| Element.px 60
+                        [ Element.height <| Element.px 40
                         , Element.width Element.fill
                         , Border.width 1
                         , Border.color colors.brightBackground
@@ -884,53 +880,84 @@ viewSampleCard card =
             [ Element.width Element.fill
             , Border.width 3
             , Border.color colors.brightBackground
+            , Element.centerX
             ]
 
 
-viewResult : Model -> Element msg
+viewResult : Model -> Element Msg
 viewResult model =
-    case model.sampleCard of
-        Ok card ->
-            Element.column
-                [ Element.width Element.fill ]
-                [ Element.el
-                    [ Font.size 24
-                    , Element.padding 5
-                    , Element.centerX
-                    ]
-                    (Element.text "Beispiel-Zettel")
-                , viewSampleCard card
-                ]
+    let
+        content =
+            case model.sampleCard of
+                Ok card ->
+                    viewSampleCard card
 
-        Err errString ->
-            Element.column
-                [ Element.width Element.fill
-                , Element.centerX
-                , Element.centerY
-                , Border.solid
-                , Border.width 2
-                , Border.color colors.text
-                , Element.padding 5
-                , Element.spacing 5
-                ]
-                [ Element.el
-                    [ Font.size 28
-                    , Element.centerX
-                    ]
-                    (Element.text "Fehler:")
-                , Element.el
-                    [ Font.size 20
-                    , Element.centerX
-                    ]
-                    (Element.text errString)
-                ]
+                Err errString ->
+                    Element.column
+                        [ Element.width Element.fill
+                        , Element.centerX
+                        , Border.solid
+                        , Border.width 2
+                        , Border.color colors.text
+                        , Element.padding 5
+                        , Element.spacing 5
+                        ]
+                        [ Element.el
+                            [ Font.size 28
+                            , Element.centerX
+                            , Font.bold
+                            ]
+                            (Element.text "Fehler:")
+                        , Element.paragraph
+                            [ Font.size 20
+                            , Element.centerX
+                            , Font.center
+                            ]
+                            [ Element.text errString ]
+                        ]
+    in
+    Element.column
+        [ Element.width Element.fill
+        , Element.spacing 20
+        , Element.height Element.fill
+        ]
+        [ viewSubHeader "Beispiel-Zettel"
+        , content
+        ]
 
 
-viewSubmit : Maybe String -> Element Msg
-viewSubmit errorMessage =
+viewButtonLabel : String -> Element msg
+viewButtonLabel txt =
+    Element.el
+        [ Border.width 2
+        , Background.color colors.brightBackground
+        , Border.color colors.color
+        , Font.size 16
+        , Element.height <| Element.px 40
+        , Element.padding 5
+        , Font.variant Font.smallCaps
+        , Element.mouseOver
+            [ Border.color colors.brightBackground
+            , Background.color colors.color
+            , Font.color colors.brightBackground
+            , Border.glow colors.brightBackground 0.5
+            ]
+        ]
+        (Element.el
+            [ Element.width Element.shrink
+            , Element.height Element.shrink
+            , Element.centerX
+            , Element.centerY
+            ]
+            (Element.text txt)
+        )
+
+
+viewSubmit : Model -> Element Msg
+viewSubmit model =
     let
         error =
-            case errorMessage of
+            case model.errorMessage of
                 Just msg ->
                     Element.el
                         [ Font.color <| Element.rgb255 255 0 0 ]
@@ -939,21 +966,34 @@ viewSubmit errorMessage =
                 Nothing ->
                     Element.none
     in
-    Element.row
+    Element.column
         [ Font.size 12
         , Font.color colors.color
-        , Element.width Element.fill
+        , Element.width Element.shrink
         , Element.height Element.fill
         , Element.spacing 20
+        , Element.centerX
         ]
-        [ Input.button
-            []
+        [ viewSubHeader "Karten erstellen"
+        , viewSelectNumberOfCards model
+        , Input.button
+            [ Element.centerX ]
             { onPress = Just SubmitSettings
             , label =
-                Element.text "Karten erzeugen"
+                viewButtonLabel "Karten erzeugen"
             }
         , error
         ]
+
+
+viewSubHeader : String -> Element msg
+viewSubHeader =
+    Element.text
+        >> Element.el
+            [ Font.size 24
+            , Element.padding 5
+            , Element.centerX
+            ]
 
 
 view : Model -> Document Msg
@@ -962,28 +1002,44 @@ view model =
         header =
             viewHeader model.title
     in
-    Element.column
-        []
-        [ header
-        , Element.row
-            [ Element.spacing 20 ]
-            [ Element.column
-                [ Element.width <| Element.px 200
-                , Element.height Element.fill
-                , Element.spacing 20
-                ]
-                [ viewInfobox
-                , viewSettings model
-                , viewSubmit model.errorMessage
-                ]
-            , Element.column
-                [ Element.width <| Element.px 600
-                , Element.height Element.fill
-                ]
-                [ viewResult model ]
+    Document
+        model.title
+        [ Element.layout
+            [ Background.color colors.darkBackground
+            , Font.color colors.text
             ]
+            (Element.column
+                [ Element.height Element.fill
+                , Element.width <| Element.px 840
+                , Element.centerX
+                , Element.centerY
+                ]
+                [ header
+                , Element.row
+                    [ Element.spacing 20
+                    ]
+                    [ Element.column
+                        [ Element.height <| Element.fill
+                        , Element.spacing 10
+                        ]
+                        [ viewSubHeader "Einstellungen"
+                        , viewInfobox
+                        , viewSettings model
+                        ]
+                    , Element.column
+                        [ Element.width <| Element.fill
+                        , Element.height Element.fill
+                        ]
+                        [ viewResult model ]
+                    ]
+                , Element.row
+                    [ Element.width Element.fill
+                    ]
+                    [ viewSubmit model
+                    ]
+                ]
+            )
         ]
-        |> asDocument model.title
 
 
 
