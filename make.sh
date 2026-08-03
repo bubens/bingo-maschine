@@ -1,7 +1,7 @@
 #!/bin/bash
 
 SOURCE_ELM="./src/Main.elm";
-SOURCE_TS="./ts/main.ts";
+SOURCE_TS="./ts/";
 SOURCE_HTML="./html/index.html";
 
 TMP_FOLDER="./tmp";
@@ -20,22 +20,24 @@ if [ ! -d $RELEASE_FOLDER ]; then
     mkdir $RELEASE_FOLDER
 else
     echo "cleaning up release-folder (rel/*)..."
-    rm "$RELEASE_FOLDER/*"
+    rm $RELEASE_FOLDER/*
 fi
 
 # compile
-echo "Step 1: Copying html..." &&
+echo "Step 1: Copying stuff..." &&
 cp -v $SOURCE_HTML $RELEASE_FOLDER &&
+
 echo "Step 2: Compiling elm..." &&
 elm make --output=$TMP_FOLDER/elm.js $SOURCE_ELM &&
-echo "Step 3: Compiling typescript..." &&
-tsc --project tsconfig.json &&
-echo "Step 4: Bundling up all the js-parts..." &&
-browserify -o "$RELEASE_FOLDER/app.js" "$TMP_FOLDER/main.js" &&
-echo "Done building app"
+
+echo "Step 3: Compiling and bundling..."
+cp $SOURCE_TS/* $TMP_FOLDER &&
+esbuild "$TMP_FOLDER/main.ts" --bundle --tree-shaking=true --analyze --minify --outfile="$RELEASE_FOLDER/app.js" 
+
+#echo "Done building app"
 
 echo "Cleaning up..." &&
-# rm -r $TMP_FOLDER &&
+rm -r $TMP_FOLDER &&
 echo "Success"
 
 
