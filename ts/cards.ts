@@ -1,4 +1,4 @@
-import * as Pdf from "jspdf";
+import { jsPDF } from "jspdf";
 
 type Settings = {
     offsetX: number,
@@ -51,7 +51,9 @@ const getImageData = (svgStr: string): HTMLCanvasElement => {
 
     //const container = document.createElement("div");
     //container.innerHTML = svgStr;
-    //document.body.appendChild(container);
+    //document.body.appendChild(canvas);
+    document.body.appendChild(image);
+
     return canvas;
 };
 
@@ -61,7 +63,7 @@ const mmToPt = (mm: number): number => mm * (72 / 25.6);
 const percentOf = (p: number, x: number): number =>
     (p / 100) * x;
 
-const getFontSize = (width: number, height: number, card: Card, pdf: Pdf): number => {
+const getFontSize = (width: number, height: number, card: Card, pdf: jsPDF): number => {
     const longestStr = card.reduce(
         (longStr, arr) => {
             const str = arr.reduce(
@@ -93,7 +95,7 @@ const headerLetter = (i: number): string => {
     return ("BINGO")[i % 5];
 };
 
-const drawCard = ({ x, y }: Point, card: Card, pdf: Pdf, n: number, jokerSvgStr: string): Pdf => {
+const drawCard = ({ x, y }: Point, card: Card, pdf: jsPDF, n: number, jokerSvgStr: string): jsPDF => {
     const realX = x + settings.offsetX;
     const realY = y + settings.offsetY;
     const width = card.length;
@@ -118,7 +120,7 @@ const drawCard = ({ x, y }: Point, card: Card, pdf: Pdf, n: number, jokerSvgStr:
 
         // text-header-row
         pdf.setFontSize(headerFontSize);
-        pdf.setFontStyle("bold");
+        pdf.setFont("courier", "bold");
         const letter = headerLetter(i);
         const { w, h } = pdf.getTextDimensions(letter);
         pdf.text(letter, fromLeft + cellWidth / 2 - w / 2, realY + cellHeight / 2 + h / 2);
@@ -126,7 +128,7 @@ const drawCard = ({ x, y }: Point, card: Card, pdf: Pdf, n: number, jokerSvgStr:
         // rest of the card
         pdf.setLineWidth(.5);
         pdf.setFontSize(fontSize);
-        pdf.setFontStyle("normal");
+        pdf.setFont("courier", "normal");
         column.forEach((_, j) => {
             const fromTop = realY + (j + 1) * cellHeight;
 
@@ -157,12 +159,12 @@ const drawCard = ({ x, y }: Point, card: Card, pdf: Pdf, n: number, jokerSvgStr:
     return pdf;
 };
 
-export const create = (cards: Cards, svgData: string): Pdf => {
-    let pdf = new Pdf({
+export const create = (cards: Cards, svgData: string): jsPDF => {
+    let pdf = new jsPDF({
         orientation: "landscape"
     });
 
-    pdf.setFontType("courier");
+    pdf.setFont("courier", "regular");
     //console.log(pdf.getFontList());
 
     cards.forEach((card: Card, i: number) => {
