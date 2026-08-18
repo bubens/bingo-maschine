@@ -41,17 +41,9 @@ const saveState = (model: Config.Model): void => {
     localStorage.getItem(key);
 };
 
-const createCards = (cards: Cards.Cards): void => {
-    const joker = localStorage.getItem(Config.storageKeys.imageData);
-    if (joker === null) {
-        throw new Error("Something went wrong while loading the joker.");
-    }
-    else {
-        const pdf = Cards.create(cards, joker);
-
-        pdf.save("bingo-cards.pdf");
-    }
-
+const createCards = (cards: Cards.Cards, joker: HTMLImageElement): void => {
+    const pdf = Cards.create(cards, joker);
+    pdf.save("bingo-cards.pdf");
 };
 
 const saveJoker = (imageData: string): void => {
@@ -60,31 +52,29 @@ const saveJoker = (imageData: string): void => {
     localStorage.getItem(key);
 }
 
-const portRouter = (msg: IncomingMessage): void => {
-    switch (msg.type) {
-        case "SaveState":
-            saveState(msg.payload);
-            break;
-        case "CreateCards":
-            createCards(msg.payload);
-            break;
-        case "SendJoker":
-            saveJoker(msg.payload);
-            break;
-    }
-};
-
-
 function main(elm: Elm, initModel: Config.Model): void {
     const model = getStoredModel(Config.storageKeys.model, initModel);
+    const joker = <HTMLImageElement>document.querySelector("#joker") ?? document.createElement("img");
 
     const app = elm.init({
         node: document.querySelector(Config.elmElementId),
         flags: model
     });
 
-    app.ports.outbox.subscribe(portRouter);
-}
+    app.ports.outbox.subscribe((msg: IncomingMessage): void => {
+        switch (msg.type) {
+            case "SaveState":
+                saveState(msg.payload);
+                break;
+            case "CreateCards":
+                createCards(msg.payload, joker);
+                break;
+            case "SendJoker":
+                saveJoker(msg.payload);
+                break;
+        }
+    });
+};
 
 
 

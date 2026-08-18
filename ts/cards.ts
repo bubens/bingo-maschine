@@ -27,34 +27,6 @@ const settings: Settings = {
     cardHeight: 90,
     positions: [point(0, 0), point(145, 0), point(0, 100), point(145, 100)],
     cardsPerPage: 4
-}
-
-const getImageData = (svgStr: string): HTMLCanvasElement => {
-    const image = document.createElement("img");
-    image.src = `data:image/svg+xml;${svgStr}`;
-    image.width = 50;
-    image.height = 50;
-
-    const canvas = document.createElement("canvas");
-    canvas.width = 50;
-    canvas.height = 50;
-
-    const context = canvas.getContext("2d", { alpha: true });
-    if (context === null) {
-        throw new Error("Upsie!");
-    }
-    else {
-        context.fillStyle = "#rgb(255,255,255)"
-        context.fillRect(0, 0, 50, 50);
-        context.drawImage(image, 0, 0);
-    }
-
-    //const container = document.createElement("div");
-    //container.innerHTML = svgStr;
-    //document.body.appendChild(canvas);
-    document.body.appendChild(image);
-
-    return canvas;
 };
 
 const ptToMm = (pt: number): number => pt / (72 / 25.6);
@@ -95,7 +67,7 @@ const headerLetter = (i: number): string => {
     return ("BINGO")[i % 5];
 };
 
-const drawCard = ({ x, y }: Point, card: Card, pdf: jsPDF, n: number, jokerSvgStr: string): jsPDF => {
+const drawCard = ({ x, y }: Point, card: Card, pdf: jsPDF, n: number, joker: HTMLImageElement): jsPDF => {
     const realX = x + settings.offsetX;
     const realY = y + settings.offsetY;
     const width = card.length;
@@ -104,8 +76,6 @@ const drawCard = ({ x, y }: Point, card: Card, pdf: jsPDF, n: number, jokerSvgSt
     const cellHeight = settings.cardHeight / (height + 1);
     const headerFontSize = mmToPt(percentOf(80, cellHeight));
     const fontSize = getFontSize(percentOf(90, cellWidth), percentOf(75, cellHeight), card, pdf);
-
-    const joker = getImageData(jokerSvgStr);
 
     // borders + header
     pdf.setLineWidth(2);
@@ -140,9 +110,9 @@ const drawCard = ({ x, y }: Point, card: Card, pdf: jsPDF, n: number, jokerSvgSt
 
 
             if (text === "%_JOKER_%") {
-                const imgX = fromLeft + (cellWidth - cellHeight) / 2;
-                const imgY = fromTop;
-                pdf.addImage(joker, imgX, imgY, cellHeight, cellHeight)
+                const imgX = fromLeft + (cellWidth - cellHeight) / 2 * cellWidth * .05;
+                const imgY = fromTop + cellHeight * .05;
+                pdf.addImage(joker, imgX, imgY, cellHeight * .9, cellHeight * .9)
             }
             else {
                 const { w, h } = pdf.getTextDimensions(text);
@@ -159,7 +129,7 @@ const drawCard = ({ x, y }: Point, card: Card, pdf: jsPDF, n: number, jokerSvgSt
     return pdf;
 };
 
-export const create = (cards: Cards, svgData: string): jsPDF => {
+export const create = (cards: Cards, joker: HTMLImageElement): jsPDF => {
     let pdf = new jsPDF({
         orientation: "landscape"
     });
@@ -173,7 +143,7 @@ export const create = (cards: Cards, svgData: string): jsPDF => {
         if (i !== 0 && i % settings.cardsPerPage === 0) {
             pdf.addPage("a4", "landscape");
         }
-        pdf = drawCard(position, card, pdf, i + 1, svgData);
+        pdf = drawCard(position, card, pdf, i + 1, joker);
 
     });
 
