@@ -28,11 +28,11 @@ echo "Step 1: Copying stuff..." &&
 cp -v $SOURCE_HTML $RELEASE_FOLDER &&
 
 echo "Step 2: Compiling elm..." &&
-elm make --output=$TMP_FOLDER/elm.js $SOURCE_ELM &&
+npx elm make --output=$TMP_FOLDER/elm.js $SOURCE_ELM &&
 
 echo "Step 3: Compiling and bundling..."
 cp $SOURCE_TS/* $TMP_FOLDER &&
-esbuild "$TMP_FOLDER/main.ts" --bundle --tree-shaking=true --analyze --minify --outfile="$RELEASE_FOLDER/app.js" 
+npx esbuild "$TMP_FOLDER/main.ts" --bundle --tree-shaking=true --analyze --minify --outfile="$RELEASE_FOLDER/app.js" 
 
 #echo "Done building app"
 
